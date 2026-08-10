@@ -1,128 +1,152 @@
-from collections import deque
+# CPU Scheduling: Round Robin and FCFS
+
+processes = [
+    ("P1", 0, 5),
+    ("P2", 4, 2),
+    ("P3", 5, 4)
+]
+
+# --------------------------------------------------
+# ROUND ROBIN
+# --------------------------------------------------
 
 def round_robin(processes, quantum):
     n = len(processes)
-    remaining = [p[2] for p in processes]
-    completion = [0] * n
-    response = [-1] * n
-    time = 0
-    context_switches = 0
-    queue = deque(range(n))
+    remaining = {p[0]: p[2] for p in processes}
+    arrival = {p[0]: p[1] for p in processes}
+    burst = {p[0]: p[2] for p in processes}
+
+    completed = {}
+    queue = []
     gantt = []
 
-    while queue:
-        i = queue.popleft()
+    time = 0
+    added = set()
 
-        if response[i] == -1:
-            response[i] = time - processes[i][1]
+    while len(completed) < n:
 
-        run_time = min(quantum, remaining[i])
+        # Add arrived processes
+        for p, at, bt in processes:
+            if at <= time and p not in added and p not in completed:
+                queue.append(p)
+                added.add(p)
 
-        gantt.append(processes[i][0])
-        time += run_time
-        remaining[i] -= run_time
+        # CPU idle
+        if not queue:
+            future = [at for p, at, bt in processes
+                      if p not in added and p not in completed]
 
-        if remaining[i] > 0:
-            queue.append(i)
-            context_switches += 1
+            if future:
+                time = min(future)
+                continue
+
+        p = queue.pop(0)
+
+        start = time
+        run = min(quantum, remaining[p])
+        time += run
+        remaining[p] -= run
+
+        gantt.append((p, start, time))
+
+        # Add newly arrived processes
+        for proc, at, bt in processes:
+            if at <= time and proc not in added and proc not in completed:
+                queue.append(proc)
+                added.add(proc)
+
+        if remaining[p] > 0:
+            queue.append(p)
         else:
-            completion[i] = time
+            completed[p] = time
 
-        # Add processes that have arrived
-        for j in range(n):
-            if (processes[j][1] <= time and
-                remaining[j] > 0 and
-                j not in queue and
-                j != i):
-                queue.append(j)
-
-    print("\nROUND ROBIN SCHEDULING")
-    print("-" * 65)
-    print("Process\tAT\tBT\tCT\tTAT\tWT\tRT")
-
-    total_tat = 0
-    total_rt = 0
-
-    for i, p in enumerate(processes):
-        at = p[1]
-        bt = p[2]
-        tat = completion[i] - at
-        wt = tat - bt
-        rt = response[i]
-
-        total_tat += tat
-        total_rt += rt
-
-        print(f"{p[0]}\t{at}\t{bt}\t{completion[i]}"
-              f"\t{tat}\t{wt}\t{rt}")
+    print("\n========== ROUND ROBIN ==========")
+    print("Time Quantum =", quantum, "ms")
 
     print("\nGantt Chart:")
-    print(" -> ".join(gantt))
+    for p, start, end in gantt:
+        print(f"| {p} ({start}-{end}) ", end="")
+    print("|")
 
-    print("\nAverage Turnaround Time:",
-          round(total_tat / n, 2))
-    print("Average Response Time:",
-          round(total_rt / n, 2))
-    print("Context Switches:", context_switches)
+    total_tat = 0
+    total_wt = 0
 
+    print("\nProcess\tAT\tBT\tCT\tTAT\tWT")
+
+    for p, at, bt in processes:
+        ct = completed[p]
+        tat = ct - at
+        wt = tat - bt
+
+        total_tat += tat
+        total_wt += wt
+
+        print(f"{p}\t{at}\t{bt}\t{ct}\t{tat}\t{wt}")
+
+    print("\nAverage Turnaround Time =",
+          round(total_tat / n, 2), "ms")
+
+    print("Average Waiting Time =",
+          round(total_wt / n, 2), "ms")
+
+
+# --------------------------------------------------
+# FCFS
+# --------------------------------------------------
 
 def fcfs(processes):
+
+    # Sort according to arrival time
+    processes = sorted(processes, key=lambda x: x[1])
+
     time = 0
     total_tat = 0
-    total_rt = 0
-    context_switches = 0
+    total_wt = 0
 
-    print("\nFCFS SCHEDULING")
-    print("-" * 65)
-    print("Process\tAT\tBT\tCT\tTAT\tWT\tRT")
+    print("\n========== KRISH 085 FCFS ==========")
 
-    gantt = []
+    print("\nGantt Chart:")
 
-    for i, p in enumerate(processes):
-        name, at, bt = p
+    completion = {}
+
+    for p, at, bt in processes:
 
         if time < at:
             time = at
 
-        response = time - at
-        completion = time + bt
-        turnaround = completion - at
-        waiting = turnaround - bt
+        start = time
+        time += bt
+        completion[p] = time
 
-        total_tat += turnaround
-        total_rt += response
+        print(f"| {p} ({start}-{time}) ", end="")
 
-        if gantt:
-            context_switches += 1
+    print("|")
 
-        gantt.append(name)
-        time = completion
+    print("\nProcess\tAT\tBT\tCT\tTAT\tWT")
 
-        print(f"{name}\t{at}\t{bt}\t{completion}"
-              f"\t{turnaround}\t{waiting}\t{response}")
+    for p, at, bt in processes:
+
+        ct = completion[p]
+        tat = ct - at
+        wt = tat - bt
+
+        total_tat += tat
+        total_wt += wt
+
+        print(f"{p}\t{at}\t{bt}\t{ct}\t{tat}\t{wt}")
 
     n = len(processes)
 
-    print("\nGantt Chart:")
-    print(" -> ".join(gantt))
+    print("\nAverage Turnaround Time =",
+          round(total_tat / n, 2), "ms")
 
-    print("\nAverage Turnaround Time:",
-          round(total_tat / n, 2))
-    print("Average Response Time:",
-          round(total_rt / n, 2))
-    print("Context Switches:", context_switches)
+    print("Average Waiting Time =",
+          round(total_wt / n, 2), "ms")
 
 
-# Process = (Process Name, Arrival Time, Burst Time)
-processes = [
-    ("P1", 0, 8),
-    ("P2", 1, 4),
-    ("P3", 2, 9),
-    ("P4", 3, 5)
-]
+# --------------------------------------------------
+# MAIN PROGRAM
+# --------------------------------------------------
 
-quantum = int(input("Enter Time Quantum: "))
-
-round_robin(processes, quantum)
+round_robin(processes, 2)
 fcfs(processes)
-print("krish 085")
